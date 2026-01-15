@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KISS Examination Portal</title>
+    <script src="html2pdf.bundle.min.js"></script>
+    <script src="qrcode.min.js"></script>
+    <!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<!-- Optional: For ZIP export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- Optional: For encryption -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+<!-- Optional: For better charts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .dev-box { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; background: #fff; }
+        .dev-box h4 { margin-top: 0; color: #333; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-weight: bold; }
+        .toggle-row input { width: auto; margin: 0; }
+        #dev-file-list { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; background: #f9f9f9; padding: 5px; }
+        #dev-file-list table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        #dev-file-list th, #dev-file-list td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+        #dev-file-list th { background: #eee; position: sticky; top: 0; }
+        .btn-small { padding: 5px 10px; font-size: 12px; }
+        .file-input-group { display: flex; gap: 5px; align-items: center; margin-bottom: 5px; }
+        .btn-clear { background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 8px 12px; font-weight: bold; }
+        .input-error { border: 2px solid #dc3545 !important; }
+        .error-message { color: #dc3545; font-size: 11px; margin-top: 3px; display: none; }
+        /* Serial Number Column Styling */
+        .serial-number-col { width: 60px; text-align: center; font-weight: bold; color: #007bff; }
+        /* Toast Notification Styles */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        
+        .toast {
+            min-width: 300px;
+            max-width: 500px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            animation: slideIn 0.3s ease-out;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        
+        .toast-success { background: #28a745; }
+        .toast-error { background: #dc3545; }
+        .toast-warning { background: #fd7e14; }
+        .toast-info { background: #007bff; }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+        
+        .toast.removing {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+        /* Network Status Badge */
+        .network-badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+          .network-badge.online {
+    background: #28a745;
+    color: white;
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+}
+
+.network-badge.offline {
+    background: #6c757d;
+    color: white;
+    box-shadow: 0 0 10px rgba(108, 117, 125, 0.3);
+}
+/* Password Toggle Styles */
+.password-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 18px;
+    user-select: none;
+    z-index: 10;
+    padding: 5px;
+    color: #666;
+}
+
+.password-toggle:hover {
+    color: #007bff;
+}
+
+.password-input {
+    padding-right: 40px !important;
+}
+    </style>
+</head>
+<body>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+    <div id="login-screen">
+    <div class="login-box">
+        <h2>KISS Portal Login</h2>
+        <input type="text" id="username" placeholder="Username">
+        <div class="password-container">
+            <input type="password" id="password" class="password-input" placeholder="Password">
+            <span class="password-toggle" onclick="togglePassword('password')">👁️</span>
+        </div>
+        <button class="btn-login" onclick="login()">Login</button>
+        <p id="login-error" class="error-msg">Invalid Credentials</p>
+    </div>
+</div>
+
+    <div class="navbar" id="navbar" style="display:none;">
+    <div style="font-weight:bold; font-size:18px;">KISS ACADEMIC PORTAL</div>
+    <div style="display:flex; align-items:center; gap:15px;">
+        <span id="network-status-badge" class="network-badge offline">🔴 Offline</span>
+        <span id="user-display">Welcome</span>
+        <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+    </div>
+
+    <div id="staff-dashboard" class="dashboard">
+        <div class="card">
+            <h3>Staff Control Panel</h3>
+
+            <div id="step0" class="step">
+                <h4>Step 0: Institute Details</h4>
+                <h4>Staff Details</h4>
+                <div class="grid-2">
+                    <div>
+                        <label>Name *</label>
+                        <input type="text" id="in_staff_name" required>
+                        <span class="error-message" id="err_staff_name">Name is required</span>
+                    </div>
+                    <div>
+                        <label>Phone *</label>
+                        <input type="tel" id="in_staff_phone" required pattern="[0-9+]*">
+                        <span class="error-message" id="err_staff_phone">Valid phone required (0-9, +)</span>
+                    </div>
+                </div>
+                <label>Email *</label>
+                <input type="email" id="in_staff_email" required>
+                <span class="error-message" id="err_staff_email">Valid email required</span>
+                <hr style="margin:10px 0;">
+                <label>Institute Name *</label>
+                <input type="text" id="in_institute" placeholder="Enter Institute Name" oninput="updatePreview('single')" required>
+                <span class="error-message" id="err_institute">Institute name is required</span>
+                <label style="margin-top:15px;">Upload Signatures (Optional)</label>
+                <div class="grid-2">
+                    <div><label>Comparer</label><div class="file-input-group"><input type="file" id="in_sig_comparer" onchange="loadSignature(this, 'out_sig_comparer')"><button type="button" class="btn-clear" onclick="clearFile('in_sig_comparer', 'out_sig_comparer')">X</button></div></div>
+                    <div><label>Head of Inst.</label><div class="file-input-group"><input type="file" id="in_sig_head" onchange="loadSignature(this, 'out_sig_head')"><button type="button" class="btn-clear" onclick="clearFile('in_sig_head', 'out_sig_head')">X</button></div></div>
+                </div>
+                <div><label>Controller</label><div class="file-input-group"><input type="file" id="in_sig_controller" onchange="loadSignature(this, 'out_sig_controller')"><button type="button" class="btn-clear" onclick="clearFile('in_sig_controller', 'out_sig_controller')">X</button></div></div>
+                <div class="btn-row"><button class="action-btn bg-blue" onclick="validateAndGo(1)">Next</button></div>
+            </div>
+
+            <div id="step1" class="step">
+                <h4>Step 1: Student Bio</h4>
+                <label>Student Photo *</label>
+                <div class="file-input-group">
+                    <input type="file" id="in_photo" accept="image/*" onchange="previewPhoto(this)" required>
+                    <button type="button" class="btn-clear" onclick="clearFile('in_photo', 'out_photo')">X</button>
+                </div>
+                <span class="error-message" id="err_photo">Photo is required</span>
+                <div class="grid-2">
+                    <div>
+                        <label>First Name *</label>
+                        <input type="text" id="in_fname" oninput="updatePreview('single')" required>
+                        <span class="error-message" id="err_fname">First name is required</span>
+                    </div>
+                    <div>
+                        <label>Last Name *</label>
+                        <input type="text" id="in_lname" oninput="updatePreview('single')" required>
+                        <span class="error-message" id="err_lname">Last name is required</span>
+                    </div>
+                </div>
+                <label>Email *</label>
+                <input type="email" id="in_student_email" required>
+                <span class="error-message" id="err_student_email">Valid email required</span>
+                <div class="grid-2">
+                    <div>
+                        <label>Enrollment *</label>
+                        <input type="text" id="in_enroll" oninput="updatePreview('single')" required>
+                        <span class="error-message" id="err_enroll">Enrollment is required</span>
+                    </div>
+                    <div>
+                        <label>Roll No *</label>
+                        <input type="text" id="in_roll" oninput="updatePreview('single')" required>
+                        <span class="error-message" id="err_roll">Roll number is required</span>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label>Regn No *</label>
+                        <input type="text" id="in_reg" oninput="updatePreview('single')" required>
+                        <span class="error-message" id="err_reg">Registration number is required</span>
+                    </div>
+                    <div>
+                        <label>Gender *</label>
+                        <select id="in_gender" onchange="updatePreview('single')" required>
+                            <option value="">-- Select --</option>
+                            <option>MALE</option>
+                            <option>FEMALE</option>
+                            <option>TRANSGENDER</option>
+                            <option>PREFER NOT TO SAY</option>
+                        </select>
+                        <span class="error-message" id="err_gender">Gender is required</span>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label>Father *</label>
+                        <input type="text" id="in_father" oninput="updatePreview('single')" required>
+                        <span class="error-message" id="err_father">Father's name is required</span>
+                    </div>
+                    <div>
+                        <label>Mother *</label>
+                        <input type="text" id="in_mother" oninput="updatePreview('single')" required>
+                        <span class="error-message" id="err_mother">Mother's name is required</span>
+                    </div>
+                </div>
+                <label>DOB *</label>
+                <input type="date" id="in_dob" oninput="updatePreview('single')" required>
+                <span class="error-message" id="err_dob">Date of birth is required</span>
+                <div class="grid-2">
+                    <div>
+                        <label>Class *</label>
+                        <select id="in_current_class" onchange="configureSemesters()" required>
+                            <option value="">-- Select --</option>
+                            <option value="UG-I">UG-I</option>
+                            <option value="UG-II">UG-II</option>
+                            <option value="UG-III">UG-III</option>
+                            <option value="UG-IV">UG-IV</option>
+                            <option value="PG-I">PG-I</option>
+                            <option value="PG-II">PG-II</option>
+                        </select>
+                        <span class="error-message" id="err_current_class">Class is required</span>
+                    </div>
+                    <div>
+                        <label>Join Year *</label>
+                        <input type="number" id="in_joining_year" onchange="configureSemesters()" autocomplete="off" required>
+                        <span class="error-message" id="err_joining_year">Joining year is required</span>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label>Stream *</label>
+                        <select id="in_stream" onchange="updateHonoursOptions()" required>
+                            <option value="">-- Select --</option>
+                            <option>SCIENCE</option>
+                            <option>ARTS</option>
+                            <option>COMMERCE</option>
+                            <option>VOCATIONAL</option>
+                        </select>
+                        <span class="error-message" id="err_stream">Stream is required</span>
+                    </div>
+                    <div>
+                        <label>Semester *</label>
+                        <select id="in_semester" required></select>
+                        <span class="error-message" id="err_semester">Semester is required</span>
+                    </div>
+                </div>
+                <label>Honours *</label>
+                <select id="in_honours" onchange="checkHonoursManual()" required></select>
+                <input type="text" id="in_honours_manual" style="display:none" oninput="updatePreview('single'); refreshSubjectDropdowns();" placeholder="Enter honours subject">
+                <span class="error-message" id="err_honours">Honours is required</span>
+                <div class="btn-row">
+                    <button class="action-btn bg-gray" onclick="goToStep(0)">Back</button>
+                    <button class="action-btn bg-blue" onclick="validateAndGo(2)">Next</button>
+                </div>
+            </div>
+
+            <div id="step2" class="step">
+                <h4>Step 2: Marks Entry</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <span id="step2-sem-badge" style="font-weight:bold; font-size:16px;">SEMESTER 1</span>
+                </div>
+                <div style="display:flex; gap:10px; margin-bottom:10px;"><button class="action-btn bg-gray" onclick="changeSemester(-1)">Prev Sem</button><button class="action-btn bg-blue" onclick="changeSemester(1)">Next Sem</button></div>
+                <label>Subject Count</label><input type="number" id="in_count" value="5" onchange="generateInputs()" autocomplete="on">
+                
+                <div id="marks-container_header" style="display:flex;gap:5px;margin-top:15px;font-weight:bold;font-size:10px;">
+                    <div style="width:100px">Subject Code</div><div style="width:280px">Subject Name</div>
+                    <div style="width:100px">Total Theory</div><div style="width:100px">Total Practical</div><div style="width:100px">Total Other</div>
+                    <div style="width:100px" autocomplete="off" required>Obtained Theory</div><div style="width:100px" autocomplete="off" required>Obtained Practical</div><div style="width:100px" autocomplete="off" required>Obtained Other</div>
+                    <div style="width:70px" autocomplete="off" required>Credits</div>
+                </div>
+                <div id="marks-container" style="max-height:300px;overflow-y:auto;"></div>
+
+                <div style="display:flex; gap:10px; margin-top:15px; border-top:1px solid #eee; padding-top:10px;">
+                    <div><label>Serial No:</label><input type="text" id="in_serial" placeholder="Sl.No." oninput="updatePreview('single')" required></div>
+                    <div><label>Date of Issue:</label><input type="date" id="in_date" oninput="updatePreview('single')" required></div>
+                </div>
+
+                <div class="btn-row"><button class="action-btn bg-blue" onclick="updatePreview('single')">Update Preview</button></div>
+                <hr>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <button class="action-btn bg-green" onclick="printStaffPDF('cumulative')">🖨️ Print Semester Result (All Sems)</button>
+                    <button class="action-btn bg-blue" onclick="printStaffPDF('single')">🖨️ Print Season Result (Current)</button>
+                </div>
+                <button class="action-btn bg-orange" style="width:100%; margin-top:10px;" onclick="saveToDatabase()">SAVE DATA TO SYSTEM</button>
+                <div class="btn-row" style="margin-top:15px;">
+                    <button class="action-btn bg-gray" onclick="goToStep(1)">Back</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-pane">
+            <div id="pdf-template" class="pdf-design">
+                <img src="logo.png" class="watermark" id="watermark_img">
+                <div class="serial-box">Sl. No.: <span id="out_serial"></span></div>
+
+                <table style="width:100%;border-bottom:2px solid #000;margin-bottom:10px;"><tr>
+                    <td style="width:15%"><img src="logo.png" id="static_logo" class="header-logo"></td>
+                    <td style="width:70%;text-align:center;">
+                        <div id="out_institute" class="institute-title"></div>
+                        <div id="out_institute_subtitle" style="font-size:14px; margin-top:5px; font-weight:bold;">(Deemed to be University)</div>
+                        <div id="out_exam_name" style="font-weight:bold; margin-top:5px; font-size:16px;"></div>
+                        <div style="font-size:12px;font-weight:bold;">CUMULATIVE GRADE SHEET</div>
+                    </td>
+                    <td style="width:15%;text-align:right;"><div id="qr-code" class="qr-box"></div></td>
+                </tr></table>
+                
+                <table style="width:100%;margin-bottom:15px;font-size:13px;">
+    <tr>
+        <td style="line-height:1.8; vertical-align:top; text-align:left;">
+            <strong>Name:</strong> <span id="out_name"></span><br>
+            <strong>Enroll:</strong> <span id="out_enroll"></span><br>
+            <strong>Roll:</strong> <span id="out_roll"></span><br>
+            <strong>Regn:</strong> <span id="out_reg"></span><br>
+            <strong>Stream:</strong> <span id="out_stream"></span><br>
+            <strong>Honours:</strong> <span id="out_honours"></span><br>
+            <strong>Father:</strong> <span id="out_father"></span><br>
+            <strong>Mother:</strong> <span id="out_mother"></span>
+        </td>
+        <td style="width:110px; text-align:right; vertical-align:top;">
+            <img id="out_photo" class="photo-box">
+        </td>
+    </tr>
+</table>
+                
+                <table class="marks-table"><thead><tr><th>S.No</th><th>Sem</th><th>Paper Code</th><th>Paper Name</th><th>Total Theory</th><th>Total Practical</th><th>Total Other</th><th>Obtained Theory</th><th>Obtained Practical</th><th>Obtained Other</th><th>Grade</th><th>Credits</th><th>Grade Points</th></tr></thead><tbody id="out_tbody"></tbody><tfoot><tr><td colspan="4" style="text-align:right">Grand Total</td><td id="out_tot_max_th"></td><td id="out_tot_max_pr"></td><td id="out_tot_max_ot"></td><td id="out_tot_obt_th"></td><td id="out_tot_obt_pr"></td><td id="out_tot_obt_ot"></td><td></td><td id="out_tot_cred"></td><td id="out_tot_gp"></td></tr></tfoot></table>
+                
+                <table style="width:100%;margin-top:15px;border:1px solid #ccc;"><tr><td style="padding:8px;width:40%;"><strong>Result: </strong> <span id="out_final_status"></span></td><td style="padding:8px;text-align:center;width:30%;"><strong>CGPA: </strong> <span id="out_cgpa"></span></td><td style="padding:8px;text-align:right;width:30%;"><strong>SGPA: </strong> <span id="out_sgpa"></span></td></tr></table>
+
+                <table id="footer-signatures" class="footer-table" style="width:100%;margin-top:30px;">
+                    <tr>
+                        <td style="width:33%;text-align:center;"><img id="out_sig_comparer" src="" class="sig-img"><div class="sig-line">COMPARER</div></td>
+                        <td style="width:33%;text-align:center;"><img id="out_sig_head" src="" class="sig-img"><div class="sig-line">HEAD OF INSTITUTION</div></td>
+                        <td style="width:33%;text-align:center;"><img id="out_sig_controller" src="" class="sig-img"><div class="sig-line">CONTROLLER OF EXAMS</div></td>
+                    </tr>
+                </table>
+
+                
+
+                <div id="footer-disclaimer" style="margin-top:80px;font-size:10px;border-top:1px solid #000;padding-top:5px;">
+                    <div style="margin-bottom:5px;border-bottom:1px solid #ddd;padding-bottom:5px;"><strong>Pass Mark : 33%</strong> in mid semester, Semester and Internal Assignment in each Paper | <strong>Calculation of SGPA = (Σ Ci x Gi) / Σ Ci</strong></div>
+                    <div style="display:flex;justify-content:space-between;margin-top:5px;">
+                        <div style="width:48%"><strong>Mark structures :</strong><br><table style="width:100%;font-size:9px;border:none;"><tr><td>Theory: 75 Marks</td><td>Practical: 10 Marks</td></tr><tr><td>assignment: 10 Marks</td><td>attendance: 5 marks</td></tr></table></div>
+                        <div style="width:50%"><strong>ABBREVIATIONS :</strong><br><table style="width:100%;font-size:9px;border:none;"><tr><td><strong>IA :</strong> Internal Assessment</td><td><strong>AP :</strong> Probation</td><td><strong>Ab :</strong> Absent</td><td><strong>T :</strong> Theory</td></tr><tr><td><strong>SE :</strong> Semester Exam</td><td><strong>SGPA :</strong> Sem. Grade Pt.</td><td><strong>CP :</strong> Credit Pt</td><td><strong>P :</strong> Practical</td></tr></table></div>
+                    </div>
+                    <div style="margin-top:10px;font-style:italic;">* This is a computer generated marksheet.<br>** It is an instant information for result. Student should collect their original grade sheet</div>
+                    <div style="position:absolute;bottom:10px;left:30px;font-weight:bold;z-index:10 ;">Date: <span id="out_date"></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="student-dashboard" class="dashboard">
+        <div style="width:100%;text-align:center;">
+            <h2>Student Result Search</h2>
+            
+            <div style="margin-bottom:20px;">
+                <h3>Step 1: Choose Result Type</h3>
+                <div style="display:flex;gap:15px;justify-content:center;">
+                    <button class="action-btn bg-green" id="btn-sem-choice" onclick="selectResultType('SEM')" style="padding:15px 30px;">
+                        📄 Semester Result (All Semesters)
+                    </button>
+                    <button class="action-btn bg-blue" id="btn-sea-choice" onclick="selectResultType('SEA')" style="padding:15px 30px;">
+                        📄 Season Result (Current Semester)
+                    </button>
+                </div>
+                <p id="selected-type-display" style="margin-top:10px;font-weight:bold;color:#007bff;font-size:16px;"></p>
+            </div>
+            
+            <h3>Step 2: Enter Your Details</h3>
+            <div class="search-box">
+                <input type="text" id="search-roll" placeholder="Enter Roll Number">
+                <input type="date" id="search-dob" placeholder="Date of Birth">
+                <button class="action-btn bg-blue" onclick="searchResult()">Search & View</button>
+            </div>
+            <p id="student-error" style="color:red;display:none;">❌ No result found or DOB mismatch.</p>
+            
+            <div id="student-result-area" style="display:none;flex-direction:column;align-items:center;margin-top:20px;">
+                <div id="student-pdf-type-label" style="font-weight:bold;font-size:18px;margin-bottom:10px;color:#007bff;"></div>
+                
+                <button class="action-btn bg-orange" onclick="printStudentResult()" style="margin-bottom:15px;padding:15px 40px;font-size:18px;">
+                    🖨️ PRINT RESULT
+                </button>
+                
+                <div class="preview-pane" style="height:auto;overflow:visible;background:#666;padding:20px;">
+                    <div id="student-pdf-container" class="pdf-design" style="background:white;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dev-dashboard" class="dashboard">
+    <div class="card" style="max-width:1600px; margin:auto;">
+        <h3>🛠️ Developer Console</h3>
+        
+        <!-- Navigation Tabs -->
+        <div class="dev-tabs">
+            <button class="dev-tab active" onclick="showDevTab('settings')">⚙️ Settings</button>
+            <button class="dev-tab" onclick="showDevTab('files')">📁 Files</button>
+            <button class="dev-tab" onclick="showDevTab('analytics')">📊 Analytics</button>
+            <button class="dev-tab" onclick="showDevTab('bulk')">📤 Bulk Ops</button>
+            <button class="dev-tab" onclick="showDevTab('backup')">💾 Backup</button>
+            <button class="dev-tab" onclick="showDevTab('security')">🔐 Security</button>
+            <button class="dev-tab" onclick="showDevTab('theme')">🎨 Theme</button>
+            <button class="dev-tab" onclick="showDevTab('advanced')">🧪 Advanced</button>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="dev-tab-settings" class="dev-tab-content active">
+            <!-- EXISTING SETTINGS (keep all your current dev boxes here) -->
+           <div class="dev-box">
+    <h4>1. User Management</h4>
+    <div style="margin-bottom:15px;">
+        <h5 style="margin-bottom:10px;">Create New User</h5>
+        <div class="grid-2">
+            <div>
+                <label>User Type</label>
+                <select id="new_user_type">
+                    <option value="staff">Staff</option>
+                    <option value="student">Student</option>
+                </select>
+            </div>
+            <div>
+                <label>Username</label>
+                <input type="text" id="new_username" placeholder="Enter username">
+            </div>
+        </div>
+        <label style="margin-top:10px;">Password</label>
+        <div class="password-container">
+            <input type="password" id="new_password" class="password-input" placeholder="Enter password">
+            <span class="password-toggle" onclick="togglePassword('new_password')">👁️</span>
+        </div>
+        <button class="action-btn bg-green" onclick="createNewUser()" style="width:100%; margin-top:10px;">➕ Create User</button>
+    </div>
+    <div id="user-list"></div>
+</div>
+            
+            <div class="dev-box">
+    <h4>2. System Credentials</h4>
+    <p style="font-size:12px; color:#dc3545; margin-bottom:10px;">⚠️ Changing these will affect login. Make sure you remember them!</p>
+    
+    <h5>Default Staff Login</h5>
+    <div class="grid-2">
+        <div>
+            <label>Username</label>
+            <input type="text" id="dev_staff_user" placeholder="Staff Username" disabled style="background:#f0f0f0;">
+        </div>
+        <div>
+            <label>Password</label>
+            <div class="password-container">
+                <input type="password" id="dev_staff_pass" class="password-input" placeholder="Staff Password" disabled style="background:#f0f0f0;">
+                <span class="password-toggle" onclick="togglePassword('dev_staff_pass')">👁️</span>
+            </div>
+        </div>
+    </div>
+    
+    <h5 style="margin-top:15px;">Default Student Login</h5>
+    <div class="grid-2">
+        <div>
+            <label>Username</label>
+            <input type="text" id="dev_student_user" placeholder="Student Username" disabled style="background:#f0f0f0;">
+        </div>
+        <div>
+            <label>Password</label>
+            <div class="password-container">
+                <input type="password" id="dev_student_pass" class="password-input" placeholder="Student Password" disabled style="background:#f0f0f0;">
+                <span class="password-toggle" onclick="togglePassword('dev_student_pass')">👁️</span>
+            </div>
+        </div>
+    </div>
+    
+    <h5 style="margin-top:15px;">Developer Login</h5>
+    <div class="grid-2">
+        <div>
+            <label>Username</label>
+            <input type="text" id="dev_dev_user" placeholder="Dev Username" disabled style="background:#f0f0f0;">
+        </div>
+        <div>
+            <label>Password</label>
+            <div class="password-container">
+                <input type="password" id="dev_dev_pass" class="password-input" placeholder="Dev Password" disabled style="background:#f0f0f0;">
+                <span class="password-toggle" onclick="togglePassword('dev_dev_pass')">👁️</span>
+            </div>
+        </div>
+    </div>
+    
+    <p style="font-size:11px; color:#666; margin-top:10px; font-style:italic;">
+        ℹ️ These fields are read-only to prevent accidental lockout. To change credentials, edit the DEFAULT_CONFIG in script.js
+    </p>
+</div>
+                <h4>3. Subject Code & Name Control</h4>
+                <!-- Keep existing subject control code -->
+            </div>
+
+            <div class="dev-box">
+    <h4>3. Subject Code & Name Control</h4>
+    <div class="toggle-row">
+        <label>Enable Subject Control (Force staff to use pre-defined subjects)</label>
+        <input type="checkbox" id="dev_subject_control_toggle" onchange="toggleSubjectControl()">
+    </div>
+    <div id="subject-control-config" style="display:none; margin-top:15px;">
+        <p style="font-size:12px; color:#666; margin-bottom:10px;">When enabled, staff can only select from subjects you add below.</p>
+        
+        <h5 style="margin-top:15px;">Add New Subject</h5>
+        <div class="grid-2">
+            <div>
+                <label>Level (UG/PG)</label>
+                <select id="new_subject_level" onchange="updateStreamDropdownInDev()">
+                    <option value="">Select Level</option>
+                    <option value="UG">UG (Undergraduate)</option>
+                    <option value="PG">PG (Postgraduate)</option>
+                </select>
+            </div>
+            <div>
+                <label>Stream</label>
+                <select id="new_subject_stream" disabled>
+                    <option value="">Select Stream</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid-2" style="margin-top:10px;">
+            <div>
+                <label>Honours</label>
+                <select id="new_subject_honours" onchange="enableSubjectInputsInDev()" disabled>
+                    <option value="">Select Honours</option>
+                </select>
+            </div>
+            <div>
+                <label>Subject Code</label>
+                <input type="text" id="new_subject_code" placeholder="e.g., PHY101" disabled>
+            </div>
+        </div>
+        <label style="margin-top:10px;">Subject Name</label>
+        <input type="text" id="new_subject_name" placeholder="e.g., Classical Mechanics" disabled>
+        
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button class="action-btn bg-green" onclick="addSubject()" style="flex:1;">➕ Add Subject</button>
+            <button class="action-btn bg-red" onclick="deleteAllSubjects()" style="flex:1;">🗑️ Delete All</button>
+        </div>
+        
+        <h5 style="margin-top:20px;">Saved Subjects</h5>
+        <div id="subject-list"></div>
+    </div>
+</div>
+
+<div class="dev-box">
+    <h4>4. Grading Logic</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:10px;">Define grading rules based on percentage. Rules apply in order from highest to lowest.</p>
+    <div id="dev-grading-container"></div>
+    <button class="action-btn bg-blue" onclick="addDevGradeRule()" style="width:100%; margin-top:10px;">➕ Add Rule</button>
+</div>
+
+<div class="dev-box">
+    <h4>5. Default Signatures</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:10px;">Upload default signatures to apply to all marksheets automatically.</p>
+    <div class="grid-2">
+        <div>
+            <label>Comparer Signature</label>
+            <div class="file-input-group">
+                <input type="file" id="dev_sig_comparer" accept="image/*" onchange="loadDevSignature(this, 'comparer')">
+                <button type="button" class="btn-clear" onclick="clearDevSignature('comparer')">X</button>
+            </div>
+        </div>
+        <div>
+            <label>Head of Institution</label>
+            <div class="file-input-group">
+                <input type="file" id="dev_sig_head" accept="image/*" onchange="loadDevSignature(this, 'head')">
+                <button type="button" class="btn-clear" onclick="clearDevSignature('head')">X</button>
+            </div>
+        </div>
+    </div>
+    <div style="margin-top:10px;">
+        <label>Controller of Exams</label>
+        <div class="file-input-group">
+            <input type="file" id="dev_sig_controller" accept="image/*" onchange="loadDevSignature(this, 'controller')">
+            <button type="button" class="btn-clear" onclick="clearDevSignature('controller')">X</button>
+        </div>
+    </div>
+</div>
+
+<div class="dev-box">
+    <h4>6. PDF Elements Control</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:10px;">Show/hide elements on the marksheet PDF.</p>
+    <div class="toggle-row">
+        <label>Show Signatures</label>
+        <input type="checkbox" id="dev_sig_toggle">
+    </div>
+    <div class="toggle-row">
+        <label>Show Disclaimer</label>
+        <input type="checkbox" id="dev_disc_toggle">
+    </div>
+</div>
+
+<div class="dev-box">
+    <h4>7. System Rules</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:10px;">Configure system-wide rules and validations.</p>
+    <div class="grid-2">
+        <div>
+            <label>Minimum Joining Year (for validation)</label>
+            <input type="number" id="dev_min_year" value="2024" min="2000" max="2050">
+        </div>
+        <div>
+            <label>Minimum Year Input Range</label>
+            <input type="number" id="dev_min_year_input" value="2020" min="2000" max="2050">
+        </div>
+    </div>
+    <div style="margin-top:10px;">
+        <label>Maximum Year Input Range</label>
+        <input type="number" id="dev_max_year_input" value="2030" min="2000" max="2100">
+    </div>
+    <p style="font-size:11px; color:#666; margin-top:10px; font-style:italic;">
+        ℹ️ Year range controls the dropdown options when staff enters joining year for students.
+    </p>
+</div>
+<div class="dev-box">
+    <h4>8. Default Total Marks</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:10px;">Set default values for Total Marks fields when creating new subject rows.</p>
+    <div class="grid-2">
+        <div>
+            <label>Default Total Theory</label>
+            <input type="number" id="dev_default_theory" value="75" min="0" max="200">
+        </div>
+        <div>
+            <label>Default Total Practical</label>
+            <input type="number" id="dev_default_practical" value="10" min="0" max="100">
+        </div>
+    </div>
+    <div style="margin-top:10px;">
+        <label>Default Total Other</label>
+        <input type="number" id="dev_default_other" value="15" min="0" max="100">
+    </div>
+</div>
+<div class="dev-box">
+    <h4>9. Institute Subtitle</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:10px;">Edit the text shown below institute name.</p>
+    <label>Subtitle Text</label>
+    <input type="text" id="dev_institute_subtitle" value="(Deemed to be University)" placeholder="e.g., (Deemed to be University)">
+</div>
+
+            <button class="action-btn bg-green" style="width:100%;" onclick="applyDevSettings()">SAVE SETTINGS</button>
+            <button class="action-btn bg-gray" style="width:100%; margin-top:10px;" onclick="resetConfig()">RESET TO DEFAULT</button>
+        </div>
+
+        <!-- FILES TAB (Feature #1) -->
+        <div id="dev-tab-files" class="dev-tab-content">
+            <div class="dev-box">
+                <h4>🔍 Advanced Search & Filter</h4>
+                
+                <!-- Search Filters -->
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:15px;">
+                    <input type="text" id="filter-roll" placeholder="🔍 Search Roll Number" oninput="applyFilters()">
+                    <input type="text" id="filter-name" placeholder="🔍 Search Name" oninput="applyFilters()">
+                    <input type="date" id="filter-dob" placeholder="Filter by DOB" onchange="applyFilters()">
+                    <select id="filter-class" onchange="applyFilters()">
+                        <option value="">All Classes</option>
+                        <option value="UG-I">UG-I</option>
+                        <option value="UG-II">UG-II</option>
+                        <option value="UG-III">UG-III</option>
+                        <option value="UG-IV">UG-IV</option>
+                        <option value="PG-I">PG-I</option>
+                        <option value="PG-II">PG-II</option>
+                    </select>
+                    <select id="filter-stream" onchange="applyFilters()">
+                        <option value="">All Streams</option>
+                        <option value="SCIENCE">Science</option>
+                        <option value="ARTS">Arts</option>
+                        <option value="COMMERCE">Commerce</option>
+                        <option value="VOCATIONAL">Vocational</option>
+                    </select>
+                    <input type="number" id="filter-year" placeholder="Joining Year" onchange="applyFilters()">
+                </div>
+                
+                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                    <button class="action-btn bg-blue" onclick="clearFilters()">🔄 Clear Filters</button>
+                    <button class="action-btn bg-green" onclick="exportFilteredCSV()">📥 Export as CSV</button>
+                    <button class="action-btn bg-orange" onclick="selectAllFiles()">☑️ Select All</button>
+                    <button class="action-btn bg-red" onclick="bulkDeleteSelected()">🗑️ Delete Selected</button>
+                </div>
+                
+                <div id="dev-file-list-advanced"></div>
+            </div>
+
+            <!-- Storage Monitor (Feature #13) -->
+            <div class="dev-box">
+                <h4>💾 Storage Monitor</h4>
+                <div id="storage-monitor"></div>
+            </div>
+        </div>
+
+        <!-- ANALYTICS TAB (Feature #2) -->
+        <div id="dev-tab-analytics" class="dev-tab-content">
+            <div class="dev-box">
+                <h4>📊 Analytics Dashboard</h4>
+                <button class="action-btn bg-blue" onclick="refreshAnalytics()" style="margin-bottom:15px;">🔄 Refresh Data</button>
+                <div id="analytics-content"></div>
+            </div>
+        </div>
+
+        <!-- BULK OPERATIONS TAB (Feature #3) -->
+        <div id="dev-tab-bulk" class="dev-tab-content">
+            <div class="dev-box">
+                <h4>📤 Bulk Export</h4>
+                <button class="action-btn bg-green" onclick="bulkExportZIP()" style="width:100%; margin-bottom:10px;">📦 Download All Results as ZIP</button>
+                <button class="action-btn bg-blue" onclick="bulkPrintSelected()" style="width:100%;">🖨️ Print Selected Results</button>
+            </div>
+
+            <div class="dev-box">
+                <h4>📥 Bulk Import</h4>
+                <p style="font-size:12px; color:#666; margin-bottom:10px;">Upload CSV file with student data (columns: roll, fname, lname, email, dob, class, stream, honours, etc.)</p>
+                <input type="file" id="bulk-import-csv" accept=".csv">
+                <button class="action-btn bg-orange" onclick="importStudentsCSV()" style="width:100%; margin-top:10px;">📥 Import Students from CSV</button>
+            </div>
+
+            <div class="dev-box">
+                <h4>🧪 Test Data Generator</h4>
+                <label>Number of dummy students:</label>
+                <input type="number" id="dummy-count" value="10" min="1" max="100">
+                <button class="action-btn bg-blue" onclick="generateDummyData()" style="width:100%; margin-top:10px;">🎲 Generate Test Data</button>
+            </div>
+        </div>
+
+        <!-- BACKUP TAB (Feature #5) -->
+        <div id="dev-tab-backup" class="dev-tab-content">
+            <div class="dev-box">
+                <h4>💾 Full System Backup</h4>
+                <button class="action-btn bg-green" onclick="createFullBackup()" style="width:100%; margin-bottom:10px;">📦 Download Complete Backup (JSON)</button>
+                <p style="font-size:11px; color:#666;">Includes: All student data + system config + signatures</p>
+            </div>
+
+            <div class="dev-box">
+                <h4>📥 Restore from Backup</h4>
+                <input type="file" id="restore-file" accept=".json">
+                <button class="action-btn bg-orange" onclick="restoreFromBackup()" style="width:100%; margin-top:10px;">⚠️ Restore Backup (Overwrites All Data)</button>
+            </div>
+
+            <div class="dev-box">
+                <h4>⏰ Auto-Backup Settings</h4>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="auto-backup-toggle" onchange="toggleAutoBackup()">
+                    <label>Enable weekly auto-backup</label>
+                </div>
+                <p style="font-size:11px; color:#666; margin-top:5px;">Last backup: <span id="last-backup-time">Never</span></p>
+            </div>
+        </div>
+
+        <!-- SECURITY TAB (Feature #6) -->
+        <div id="dev-tab-security" class="dev-tab-content">
+            <div class="dev-box">
+                <h4>🔐 Activity Log</h4>
+                <button class="action-btn bg-blue" onclick="refreshActivityLog()" style="margin-bottom:10px;">🔄 Refresh</button>
+                <button class="action-btn bg-red" onclick="clearActivityLog()" style="margin-bottom:10px;">🗑️ Clear Log</button>
+                <div id="activity-log" style="max-height:400px; overflow-y:auto; border:1px solid #ddd; padding:10px; background:#f9f9f9; font-family:monospace; font-size:11px;"></div>
+            </div>
+
+            <div class="dev-box">
+                <h4>🔒 Data Encryption</h4>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="encryption-toggle" onchange="toggleEncryption()">
+                    <label>Enable data encryption (AES-256)</label>
+                </div>
+                <p style="font-size:11px; color:#666; margin-top:5px;">⚠️ Warning: Enabling encryption will re-encrypt all existing data. Keep your encryption key safe!</p>
+            </div>
+        </div>
+
+        <!-- THEME TAB (Feature #8) -->
+        <div id="dev-tab-theme" class="dev-tab-content">
+            <div class="dev-box">
+                <h4>🎨 Color Customization</h4>
+                <div class="grid-2">
+                    <div><label>Navbar Color</label><input type="color" id="theme-navbar" value="#343a40"></div>
+                    <div><label>Primary Button</label><input type="color" id="theme-primary" value="#007bff"></div>
+                    <div><label>Success Button</label><input type="color" id="theme-success" value="#28a745"></div>
+                    <div><label>Background</label><input type="color" id="theme-bg" value="#f0f2f5"></div>
+                </div>
+                <button class="action-btn bg-blue" onclick="applyTheme()" style="width:100%; margin-top:10px;">✨ Apply Theme</button>
+                <button class="action-btn bg-gray" onclick="resetTheme()" style="width:100%; margin-top:5px;">🔄 Reset to Default</button>
+            </div>
+
+            <div class="dev-box">
+                <h4>🌓 Dark Mode</h4>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode()">
+                    <label>Enable Dark Mode</label>
+                </div>
+            </div>
+
+            <div class="dev-box">
+    <h4>🖼️ Custom Logo & Watermark</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:10px;">Upload custom images for logo (header) and watermark (background)</p>
+    
+    <label>Main Logo (appears in header & QR section)</label>
+    <input type="file" id="custom-logo" accept="image/*" onchange="uploadCustomLogo(this)">
+    <div style="text-align:center; margin:10px 0;">
+        <img id="logo-preview" src="logo.png" style="max-width:100px; max-height:100px; border:1px solid #ddd; padding:5px;">
+    </div>
+    
+    <label style="margin-top:15px;">Watermark (appears as background)</label>
+    <input type="file" id="custom-watermark" accept="image/*" onchange="uploadCustomWatermark(this)">
+    <div style="text-align:center; margin:10px 0;">
+        <img id="watermark-preview" src="logo.png" style="max-width:100px; max-height:100px; border:1px solid #ddd; padding:5px; opacity:0.3;">
+    </div>
+    
+    <button class="action-btn bg-blue" onclick="resetLogo()" style="width:100%; margin-top:10px;">🔄 Reset Both to Default</button>
+</div>
+        </div>
+
+        <!-- ADVANCED TAB (Features #9, #10, #12, #15) -->
+        <!-- ADVANCED TAB (Features #9, #10, #12, #15) -->
+        <div id="dev-tab-advanced" class="dev-tab-content">
+            <div class="dev-box">
+                <h4>📄 Certificate Generator</h4>
+                <p style="font-size:12px; color:#666;">Coming soon...</p>
+            </div>
+
+            <div class="dev-box">
+                <h4>🔄 Version Control</h4>
+                <button class="action-btn bg-blue" onclick="showVersionHistory()" style="width:100%;">📜 View Edit History</button>
+                <div id="version-history" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="dev-box">
+                <h4>📱 QR Code Verification</h4>
+                <input type="text" id="qr-verify-input" placeholder="Paste scanned QR data">
+                <button class="action-btn bg-blue" onclick="verifyQRCode()" style="width:100%; margin-top:10px;">✅ Verify Marksheet</button>
+                <div id="qr-verify-result" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="dev-box">
+                <h4>📋 Template Manager</h4>
+                <p style="font-size:12px; color:#666; margin-bottom:15px;">Save and switch between different marksheet templates</p>
+                <div id="template-list-container"></div>
+            </div>
+            
+            <div class="dev-box">
+                <h4>🔔 Notifications Center</h4>
+                <button class="action-btn bg-blue" onclick="initializeNotifications()" style="width:100%; margin-bottom:10px;">🔄 Refresh Notifications</button>
+                <button class="action-btn bg-red" onclick="clearAllNotifications()" style="width:100%;">🗑️ Clear All Notifications</button>
+                <div style="margin-top:15px; padding:10px; background:#f8f9fa; border-radius:5px; font-size:12px;">
+                    <strong>Auto-notifications enabled for:</strong><br>
+                    • Storage warnings (>80% full)<br>
+                    • Backup reminders (weekly)<br>
+                    • Pending tasks (students without marks)<br>
+                    • New student additions
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<footer>
+    <div class="footer">
+    <p>This software is developed by A Computer Science student of Kalinga Institute of Social Sciences.</p>
+   <p>This is a Software build by Hanak Pradhan and is just for educational purposes.</p>
+   <p>If any issue you found in this Software the Please contact me</p>
+   <p id="left_footer">contact me in <a href="https://x.com/HanakP13">X also known as twitter</a></p>
+   <p id="right_footer">contack me in <a href="https://www.instagram.com/_solivagant_05/">Instagram</a></p>
+   <p id="left_footer">contact me in <a href="https://t.me/Stranger1303">Telegram</a></p>
+   <p id="right_footer">contact me in <a href="mailto:pradhanhanak84@gmail.com">Mail</a></p>
+   <p id="left_footer">contact me in <a href="mailto:personal.hanak13@gmail.com">Mail</a></p>
+    </div>
+   
+</footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

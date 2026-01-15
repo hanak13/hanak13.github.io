@@ -1,0 +1,371 @@
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; background-image: url("background.jpeg"); background-size: cover; background-position: center; background-repeat: no-repeat; }
+#login-screen { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; background: #e9ecef; z-index: 1000; }
+.login-box { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 350px; text-align: center; }
+.login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+.btn-login { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
+.error-msg { color: red; display: none; margin-top: 15px; font-weight: bold; }
+.dashboard { display: none; width: 98%; max-width: 1900px; padding: 20px; }
+.dashboard.active { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+.navbar { width: 100%; background: #343a40; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; }
+.btn-logout { background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+.card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); flex: 1; min-width: 600px; max-width: 800px; height: fit-content; }
+#staff-dashboard .card.wide-card { min-width: 1400px; max-width: 1650px; }
+.step { display: none; }
+.step.active { display: block; animation: fadeIn 0.3s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+label { display: block; font-weight: bold; font-size: 13px; margin-top: 10px; color: #555; }
+input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.btn-row { margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end; }
+button.action-btn { padding: 12px 25px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; font-size: 14px; }
+.bg-blue { background: #007bff; } .bg-green { background: #28a745; } .bg-orange { background: #fd7e14; } .bg-gray { background: #6c757d; } .bg-red { background: #dc3545; }
+#marks-container input { padding: 5px !important; font-size: 12px; text-align: center; height: 35px; }
+#marks-container .inp-paper { text-align: left !important; padding-left: 8px !important; }
+#marks-container_header div { text-align: center; font-size: 12px; font-weight: bold; }
+/* ================================================ */
+/* PREVIEW PANE - Safe container for marksheet preview */
+/* Ensures content fits without overlap/squeezing     */
+/* ================================================ */
+.preview-pane {
+    flex: 1;                          /* Takes available space */
+    min-width: 820px;                 /* Minimum width for desktop view */
+    max-width: 100%;                  /* Never exceeds screen width */
+    background: #666;                 /* Dark background for contrast */
+    padding: 30px;                    /* Increased padding - prevents content touching edges */
+    border-radius: 12px;              /* Smooth corners */
+    display: flex;
+    justify-content: center;          /* Centers the inner marksheet */
+    align-items: flex-start;          /* Starts from top */
+    overflow: auto;                   /* Scroll only if content is too tall */
+    max-height: 85vh;                 /* Leaves space for navbar/footer */
+    box-sizing: border-box;           /* Padding included in width - no overflow */
+    margin: 10px auto;                /* Center alignment + breathing space */
+    border: 2px solid #444;           /* Subtle border for clear boundary */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3); /* Professional shadow */
+}
+
+/* Inner marksheet (pdf-design) inside preview - real A4 feel */
+.preview-pane .pdf-design {
+    width: 210mm;                     /* Exact A4 width */
+    min-height: 297mm;                /* Minimum A4 height */
+    max-width: 100%;                  /* Responsive for smaller screens */
+    background: white;
+    padding: 30px;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;                 /* Prevents any inner content overflow */
+    box-shadow: 0 0 20px rgba(0,0,0,0.4); /* Elevation effect */
+}
+
+/* Table inside preview - prevent squeezing/overlap */
+.preview-pane table.marks-table {
+    width: 100% !important;
+    table-layout: fixed !important;   /* Fixed column widths - no dynamic squeeze */
+    font-size: 11px;                  /* Slightly larger for preview readability */
+    border-collapse: collapse;
+}
+
+/* Cells - wrap text properly */
+.preview-pane td,
+.preview-pane th {
+    word-break: break-word !important;   /* Long words break to next line */
+    white-space: normal !important;      /* Allow multi-line text */
+    padding: 6px 8px !important;         /* Comfortable padding */
+    font-size: 10px !important;          /* Readable size */
+    vertical-align: middle;
+}
+
+/* Scrollbar styling (optional, looks clean) */
+.preview-pane::-webkit-scrollbar {
+    width: 10px;
+}
+.preview-pane::-webkit-scrollbar-track {
+    background: #555;
+}
+.preview-pane::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+}
+.preview-pane::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+.pdf-design {
+    width: 210mm !important;           /* Force A4 width */
+    min-height: 297mm !important;
+    max-width: 100%;
+    background: white;
+    padding: 30px;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden !important;
+    margin: 0 auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.4);
+}
+.watermark { position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%); width: 350px; opacity: 0.15; z-index: 0; pointer-events: none; }
+.serial-box { position: absolute; top: 30px; left: 30px; font-size: 12px; font-weight: bold; border: 1px solid #000; padding: 3px 8px; background: #fff; }
+.header-logo { width: 80px; height: 80px; object-fit: contain; }
+.qr-box { width: 80px; height: 80px; display: block; } .qr-box img { width: 100%; height: 100%; }
+.institute-title { font-size: 22px; font-weight: 900; text-transform: uppercase; line-height: 1.2; }
+.photo-box { width: 100px; height: 120px; border: 1px solid #ccc; object-fit: cover; display: block; }
+table.marks-table {
+    width: 100% !important;
+    border-collapse: collapse;
+    border: 2px solid #000;
+    margin-top: 10px;
+    table-layout: fixed !important;     /* Sabse important – columns fixed rakhega */
+    font-size: 10px;
+    background: transparent;
+}
+
+table.marks-table td,
+table.marks-table th {
+    border: 1px solid #000;
+    padding: 5px 7px !important;      /* 5-7px best balance – squeeze nahi hoga */
+    text-align: center;
+    vertical-align: middle;
+    word-break: break-word !important;
+    white-space: normal !important;
+    overflow: hidden !important;
+    hyphens: auto;
+    font-size: 9.5px !important;      /* 9.5px – readable + fit */
+    line-height: 1.25;
+}
+
+table.marks-table th {
+    background: #f2f2f2;
+    font-weight: bold;
+    font-size: 9px;
+    height: 45px;                       /* Header ko height de */
+    white-space: normal;
+    line-height: 1.2;
+}
+.pass-status { font-weight: bold; font-size: 16px; } .status-pass { color: green; } .status-fail { color: red; }
+.sig-img { height: 45px; display: block; margin: 0 auto 2px auto; } .sig-line { border-top: 1px solid #000; display: inline-block; width: 90%; padding-top: 2px; font-weight: bold; font-size: 11px; }
+.search-box { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+.search-box input { max-width: 300px; }
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 10mm 8mm;
+    }
+
+    table.marks-table {
+        page-break-inside: avoid !important;
+    }
+
+    table.marks-table tr {
+        page-break-inside: avoid !important;
+        page-break-after: auto;
+    }
+
+    table.marks-table td,
+    table.marks-table th {
+        page-break-inside: avoid !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+        font-size: 9px !important;
+    }
+
+    /* Yeh add kar – agar watermark overlap kar raha to */
+    .watermark {
+        display: none !important;     /* Print mein watermark hide kar de */
+    }
+}
+/* ================================ */
+/* DEVELOPER CONSOLE ENHANCEMENTS   */
+/* ================================ */
+
+.dev-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.dev-tab {
+    padding: 10px 20px;
+    background: #e9ecef;
+    border: none;
+    border-radius: 5px 5px 0 0;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.dev-tab:hover {
+    background: #dee2e6;
+}
+
+.dev-tab.active {
+    background: #007bff;
+    color: white;
+}
+
+.dev-tab-content {
+    display: none;
+}
+
+.dev-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s;
+}
+
+/* File list with checkboxes */
+/* File list with checkboxes */
+.file-row {
+    display: grid;
+    grid-template-columns: 40px 60px 120px 200px 120px 120px 120px 1fr;
+    gap: 10px;
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    align-items: center;
+    font-size: 12px;
+}
+
+.file-row:hover {
+    background: #f8f9fa;
+}
+
+.file-row-header {
+    font-weight: bold;
+    background: #e9ecef;
+}
+
+/* Serial Number Column */
+.serial-number-col {
+    width: 60px;
+    text-align: center;
+    font-weight: bold;
+    color: #007bff;
+}
+
+/* Analytics Cards */
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.analytics-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.analytics-card h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.analytics-card .value {
+    font-size: 32px;
+    font-weight: bold;
+}
+
+.analytics-card.blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.analytics-card.green { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); }
+.analytics-card.orange { background: linear-gradient(135deg, #fd7e14 0%, #ffc107 100%); }
+.analytics-card.red { background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%); }
+
+/* Storage Monitor */
+.storage-bar {
+    width: 100%;
+    height: 30px;
+    background: #e9ecef;
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+    margin: 10px 0;
+}
+
+.storage-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745, #20c997);
+    transition: width 0.5s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.storage-fill.warning { background: linear-gradient(90deg, #ffc107, #fd7e14); }
+.storage-fill.danger { background: linear-gradient(90deg, #dc3545, #c82333); }
+
+/* Dark Mode */
+body.dark-mode {
+    background: #1a1a1a;
+    color: #e0e0e0;
+}
+
+body.dark-mode .card,
+body.dark-mode .login-box,
+body.dark-mode .dev-box {
+    background: #2d2d2d;
+    color: #e0e0e0;
+}
+
+body.dark-mode input,
+body.dark-mode select {
+    background: #3a3a3a;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+body.dark-mode .navbar {
+    background: #000;
+}
+
+/* Activity Log */
+.log-entry {
+    padding: 8px;
+    border-left: 3px solid #007bff;
+    margin-bottom: 5px;
+    background: white;
+}
+
+.log-entry.create { border-left-color: #28a745; }
+.log-entry.update { border-left-color: #ffc107; }
+.log-entry.delete { border-left-color: #dc3545; }
+
+.log-time {
+    color: #666;
+    font-size: 10px;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield; /* For Firefox */
+    appearance: none;
+}
+footer{
+    border: 2px solid black ;
+    border-radius : 5px 5px 0px 0px ;
+    width : 98% ;
+    background: #666;
+}
+div.footer{
+    background: transparent;
+    padding: 5px;
+}
+footer p{
+    color:white;
+    font-size: 14px;
+}
+p#left_footer{
+    float: left ;
+    margin-left: 20px;
+}
+p#right_footer{
+    float: right ;
+    margin-right: 20px;
+}
