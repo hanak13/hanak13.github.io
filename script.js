@@ -248,43 +248,61 @@ window.addEventListener('load', function() {
     }, 1000);
 });
 
+// ==========================================
+// CONSOLIDATED WINDOW.ONLOAD - ONLY ONE!
+// ==========================================
+
 window.onload = async function() {
+    // Wait a bit for DOM to fully settle
     await new Promise(resolve => setTimeout(resolve, 100));
     
+    // 1. Convert images to base64
     convertImageToBase64('static_logo');
     convertImageToBase64('watermark_img');
+    
+    // 2. Load default signatures
     loadDefaultSignatures();
     
+    // 3. Configure joining year input limits
     const joiningYearField = document.getElementById('in_joining_year');
     if(joiningYearField) {
         joiningYearField.setAttribute('min', appConfig.minYearInput || 2020);
         joiningYearField.setAttribute('max', appConfig.maxYearInput || 2030);
     }
     
-    console.log('✅ App initialized with config');
-    
-    // ✅ ADD THIS:
+    // 4. Setup keyboard navigation
     setupKeyboardNavigation();
-    console.log('✅ Keyboard navigation ready');
-};
-window.onload = async function() {
-    await new Promise(resolve => setTimeout(resolve, 100));
     
-    convertImageToBase64('static_logo');
-    convertImageToBase64('watermark_img');
-    loadDefaultSignatures();
+    // 5. Initialize developer features
+    initializeDeveloperFeatures();
     
-    const joiningYearField = document.getElementById('in_joining_year');
-    if(joiningYearField) {
-        joiningYearField.setAttribute('min', appConfig.minYearInput || 2020);
-        joiningYearField.setAttribute('max', appConfig.maxYearInput || 2030);
-    }
+    // 6. Initialize notifications
+    initializeNotifications();
     
-    console.log('✅ App initialized with config');
+    // 7. Initialize template manager
+    initializeTemplateManager();
     
-    // Setup keyboard navigation
-    setupKeyboardNavigation();
-    console.log('✅ Keyboard navigation ready');
+    // 8. Update network status
+    setTimeout(() => {
+        updateNetworkStatus();
+        
+        // Try to initialize Firebase if online
+        if(isOnline) {
+            const firebaseReady = initializeFirebase();
+            if(firebaseReady) {
+                showToast('🌐 Online Mode: Cloud backup enabled.', 'success', 3000);
+            } else {
+                showToast('⚠️ Online but Firebase unavailable. Using local storage only.', 'warning', 4000);
+            }
+        } else {
+            showToast('🔴 Offline Mode: All features available locally.', 'info', 4000);
+        }
+    }, 1000);
+    
+    // 9. Load saved theme
+    loadSavedTheme();
+    
+    console.log('✅ All systems initialized');
 };
 // Toast Notification System
 function showToast(message, type = 'info', duration = 3000) {
@@ -620,58 +638,75 @@ function login() {
     document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
     errorMsg.style.display = 'none';
 
+    // ✅ DEFAULT STAFF LOGIN (has full access)
     if (u === appConfig.staffUser && p === appConfig.staffPass) {
         loginScreen.style.display = 'none';
         document.getElementById('navbar').style.display = 'flex';
-        document.getElementById('user-display').innerText = "Staff Panel - " + u;
+        document.getElementById('user-display').innerText = "Staff Panel (Admin) - " + u;
         document.getElementById('staff-dashboard').classList.add('active');
-        goToStep(0); 
+        document.getElementById('staff-mode-selection').classList.add('active');
+        
+        // Store role globally
+        window.currentStaffRole = 'all';
+        
         configureSemesters(); 
         return;
     }
     
+    // ✅ CUSTOM STAFF LOGIN with role check
     if(appConfig.customUsers && appConfig.customUsers.staff) {
         const staffUser = appConfig.customUsers.staff.find(user => user.username === u && user.password === p);
         if(staffUser) {
             loginScreen.style.display = 'none';
             document.getElementById('navbar').style.display = 'flex';
-            document.getElementById('user-display').innerText = "Staff Panel - " + u;
+            
+            // Store role globally
+            window.currentStaffRole = staffUser.role || 'all';
+            
+            const roleText = staffUser.role ? ` (${staffUser.role})` : '';
+            document.getElementById('user-display').innerText = "Staff Panel" + roleText + " - " + u;
             document.getElementById('staff-dashboard').classList.add('active');
-            goToStep(0); 
+            
+            // Show staff-mode-selection with role restrictions
+            showStaffModeSelection(staffUser.role);
+            
             configureSemesters(); 
             return;
         }
     }
     
+    // ✅ DEFAULT STUDENT LOGIN
     if (u === appConfig.studentUser && p === appConfig.studentPass) {
         loginScreen.style.display = 'none';
         document.getElementById('navbar').style.display = 'flex';
-        document.getElementById('user-display').innerText = "Student Portal - " + u;
+        document.getElementById('user-display').innerText = "Student Panel - " + u;
         document.getElementById('student-dashboard').classList.add('active');
         return;
     }
     
+    // ✅ CUSTOM STUDENT LOGIN
     if(appConfig.customUsers && appConfig.customUsers.student) {
         const studentUser = appConfig.customUsers.student.find(user => user.username === u && user.password === p);
         if(studentUser) {
             loginScreen.style.display = 'none';
             document.getElementById('navbar').style.display = 'flex';
-            document.getElementById('user-display').innerText = "Student Portal - " + u;
+            document.getElementById('user-display').innerText = "Student Panel - " + u;
             document.getElementById('student-dashboard').classList.add('active');
             return;
         }
     }
     
+    // ✅ DEVELOPER LOGIN
     if (u === appConfig.devUser && p === appConfig.devPass) {
         loginScreen.style.display = 'none';
         document.getElementById('navbar').style.display = 'flex';
-        document.getElementById('user-display').innerText = "Developer Console";
+        document.getElementById('user-display').innerText = "Developer Panel - " + u;
         document.getElementById('dev-dashboard').classList.add('active');
         loadDevSettings();
-        loadDevFileList();
         return;
     }
     
+    // ✅ If no match found, show error
     errorMsg.style.display = 'block';
 }
 
@@ -752,6 +787,15 @@ document.getElementById('dev_institute_subtitle').value = appConfig.instituteSub
     
     renderDevGradingRules();
     renderUserList();
+    const userTypeSelect = document.getElementById('new_user_type');
+    if(userTypeSelect) {
+        userTypeSelect.addEventListener('change', function() {
+            const roleSection = document.getElementById('staff-role-section');
+            if(roleSection) {
+                roleSection.style.display = this.value === 'staff' ? 'block' : 'none';
+            }
+        });
+    }
 }
 
 function renderUserList() {
@@ -773,10 +817,12 @@ function renderUserList() {
     html += `<tr style="background:#d4edda;"><td style="padding:8px; border:1px solid #ddd;">Dev (Default)</td><td style="padding:8px; border:1px solid #ddd;">${appConfig.devUser}</td>${passwordCell(appConfig.devPass, 'pass_dev_default')}<td style="padding:8px; border:1px solid #ddd; text-align:center;">🔒</td></tr>`;
     
     if(appConfig.customUsers && appConfig.customUsers.staff) {
-        appConfig.customUsers.staff.forEach((user, index) => {
-            html += `<tr><td style="padding:8px; border:1px solid #ddd;">Staff</td><td style="padding:8px; border:1px solid #ddd;">${user.username}</td>${passwordCell(user.password, 'pass_staff_' + index)}<td style="padding:8px; border:1px solid #ddd; text-align:center;"><button onclick="deleteUser('staff', ${index})" class="btn-clear" style="padding:3px 8px; font-size:11px;">Delete</button></td></tr>`;
-        });
-    }
+    appConfig.customUsers.staff.forEach((user, index) => {
+        // ✅ ADD role display
+        const roleText = user.role ? ` (${user.role})` : '';
+        html += `<tr><td style="padding:8px; border:1px solid #ddd;">Staff${roleText}</td><td style="padding:8px; border:1px solid #ddd;">${user.username}</td>${passwordCell(user.password, 'pass_staff_' + index)}<td style="padding:8px; border:1px solid #ddd; text-align:center;"><button onclick="deleteUser('staff', ${index})" class="btn-clear" style="padding:3px 8px; font-size:11px;">Delete</button></td></tr>`;
+    });
+}
     
     if(appConfig.customUsers && appConfig.customUsers.student) {
         appConfig.customUsers.student.forEach((user, index) => {
@@ -814,6 +860,12 @@ function createNewUser() {
         return;
     }
     
+    // ✅ NEW: If staff, ask for role
+    let role = null;
+if(type === 'staff') {
+    role = document.getElementById('new_user_role').value; // ✅ Use dropdown instead of prompt
+}
+    
     const allUsers = [
         {username: appConfig.staffUser},
         {username: appConfig.studentUser},
@@ -827,7 +879,13 @@ function createNewUser() {
         return;
     }
     
-    appConfig.customUsers[type].push({username, password});
+    // ✅ NEW: Save with role for staff
+    const newUser = {username, password};
+    if(type === 'staff') {
+        newUser.role = role; // ✅ Add role
+    }
+    
+    appConfig.customUsers[type].push(newUser);
     
     localStorage.setItem('kiss_app_config', JSON.stringify(appConfig));
     
@@ -836,7 +894,8 @@ function createNewUser() {
     
     renderUserList();
     
-    showToast(`✅ ${type.charAt(0).toUpperCase() + type.slice(1)} user "${username}" created successfully!`, 'success');
+    const roleText = type === 'staff' ? ` with role: ${role}` : '';
+    showToast(`✅ ${type.charAt(0).toUpperCase() + type.slice(1)} user "${username}" created successfully${roleText}!`, 'success');
 }
 
 function deleteUser(type, index) {
@@ -906,7 +965,6 @@ function updateStreamDropdownInDev() {
     nameInput.value = '';
     
     if(!level) {
-        // Disable all if no level selected
         streamSelect.disabled = true;
         honoursSelect.disabled = true;
         codeInput.disabled = true;
@@ -917,48 +975,136 @@ function updateStreamDropdownInDev() {
     // Enable stream dropdown
     streamSelect.disabled = false;
 
-    // Add stream options
-    ['SCIENCE', 'ARTS', 'COMMERCE', 'VOCATIONAL'].forEach(stream => {
-        const option = document.createElement('option');
-        option.value = stream;
-        option.textContent = stream.charAt(0) + stream.slice(1).toLowerCase();
-        streamSelect.appendChild(option);
-    });
+    // ✅ UPDATED: Add all UG/PG year options
+    if(level === 'UG') {
+        ['UG-I', 'UG-II', 'UG-III', 'UG-IV'].forEach(year => {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            streamSelect.appendChild(option);
+        });
+    } else if(level === 'PG') {
+        ['PG-I', 'PG-II'].forEach(year => {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            streamSelect.appendChild(option);
+        });
+    }
 
-    // ✅ FIX: Add onchange handler AFTER adding options
     streamSelect.onchange = updateHonoursDropdownInDev;
     
-    // Keep honours, code, name disabled until stream is selected
     honoursSelect.disabled = true;
     codeInput.disabled = true;
     nameInput.disabled = true;
 }
 
 // Function 2: Update Honours dropdown when Stream is selected
-function updateHonoursDropdownInDev() {
+function updateStreamDropdownInDev() {
     const level = document.getElementById('new_subject_level').value;
-    const stream = document.getElementById('new_subject_stream').value;
+    const streamSelect = document.getElementById('new_subject_stream');
+    const categorySelect = document.getElementById('new_subject_category'); // ✅ ADD THIS
     const honoursSelect = document.getElementById('new_subject_honours');
     const codeInput = document.getElementById('new_subject_code');
     const nameInput = document.getElementById('new_subject_name');
     
+    // Reset all dependent fields
+    streamSelect.innerHTML = '<option value="">Select Stream</option>';
+    categorySelect.innerHTML = '<option value="">Select Stream</option>'; // ✅ ADD THIS
     honoursSelect.innerHTML = '<option value="">Select Honours</option>';
     codeInput.value = '';
     nameInput.value = '';
     
-    if(!level || !stream) {
+    if(!level) {
+        streamSelect.disabled = true;
+        categorySelect.disabled = true; // ✅ ADD THIS
         honoursSelect.disabled = true;
         codeInput.disabled = true;
         nameInput.disabled = true;
         return;
     }
     
+    // Enable stream dropdown
+    streamSelect.disabled = false;
+
+    // ✅ Add year options (UG-I, UG-II, etc.)
+    if(level === 'UG') {
+        ['UG-I', 'UG-II', 'UG-III', 'UG-IV'].forEach(year => {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            streamSelect.appendChild(option);
+        });
+    } else if(level === 'PG') {
+        ['PG-I', 'PG-II'].forEach(year => {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            streamSelect.appendChild(option);
+        });
+    }
+
+    // ✅ ADD: Set onchange to enable category dropdown
+    streamSelect.onchange = function() {
+        if(streamSelect.value) {
+            // Enable category dropdown and populate it
+            categorySelect.disabled = false;
+            categorySelect.innerHTML = '<option value="">Select Stream</option>';
+            ['SCIENCE', 'ARTS', 'COMMERCE', 'VOCATIONAL'].forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat.charAt(0) + cat.slice(1).toLowerCase();
+                categorySelect.appendChild(option);
+            });
+        } else {
+            categorySelect.disabled = true;
+            categorySelect.innerHTML = '<option value="">Select Stream</option>';
+        }
+        // âœ… FIX: Category dropdown should trigger Honours population
+        categorySelect.onchange = updateHonoursDropdownInDev;
+        
+        // Reset downstream fields
+        honoursSelect.innerHTML = '<option value="">Select Honours</option>';
+        honoursSelect.disabled = true;
+        codeInput.disabled = true;
+        nameInput.disabled = true;
+        codeInput.value = '';
+        nameInput.value = '';
+    };
+    
+    // Keep everything else disabled until stream is selected
+    categorySelect.disabled = true;
+    honoursSelect.disabled = true;
+    codeInput.disabled = true;
+    nameInput.disabled = true;
+}
+function updateHonoursDropdownInDev() {
+    const level = document.getElementById('new_subject_level').value;
+    const year = document.getElementById('new_subject_stream').value; // UG-II, PG-I
+    const category = document.getElementById('new_subject_category').value; // SCIENCE, ARTS
+    const honoursSelect = document.getElementById('new_subject_honours');
+    const codeInput = document.getElementById('new_subject_code');
+    const nameInput = document.getElementById('new_subject_name');
+    
+    // Reset honours and inputs
+    honoursSelect.innerHTML = '<option value="">Select Honours</option>';
+    codeInput.disabled = true;
+    nameInput.disabled = true;
+    codeInput.value = '';
+    nameInput.value = '';
+    
+    if(!category) {
+        honoursSelect.disabled = true;
+        return;
+    }
+    
     // Enable honours dropdown
     honoursSelect.disabled = false;
     
-    // Use existing HONOURS_DATA
-    const key = level + '-' + stream;
+    // âœ… Build the key for HONOURS_DATA (e.g., "UG-II-COMMERCE")
+    const key = `${year}-${category}`;
     
+    // Populate honours from HONOURS_DATA
     if(HONOURS_DATA[key]) {
         HONOURS_DATA[key].forEach(honour => {
             const option = document.createElement('option');
@@ -968,17 +1114,8 @@ function updateHonoursDropdownInDev() {
         });
     }
     
-    // Add "None" option
-    const noneOption = document.createElement('option');
-noneOption.value = 'None';
-noneOption.textContent = 'None (General)';
-honoursSelect.appendChild(noneOption);
-
-// Keep code and name disabled until honours is selected
-codeInput.disabled = true;
-nameInput.disabled = true;
-    
-   
+    // Set onchange to enable code/name inputs
+    honoursSelect.onchange = enableSubjectInputsInDev;
 }
 // Function 3: Enable code/name inputs when Honours is selected
 function enableSubjectInputsInDev() {
@@ -999,25 +1136,24 @@ function enableSubjectInputsInDev() {
     }
 }
 function addSubject() {
-    // ✅ FIX: Trim ALL inputs (Error #8 fix included)
     const level = document.getElementById('new_subject_level').value.trim();
+    const year = document.getElementById('new_subject_stream').value.trim(); // UG-I, PG-II
+    const category = document.getElementById('new_subject_category').value.trim(); // SCIENCE, ARTS
     const code = document.getElementById('new_subject_code').value.trim();
     const name = document.getElementById('new_subject_name').value.trim();
-    const stream = document.getElementById('new_subject_stream').value.trim();
     const honours = document.getElementById('new_subject_honours').value.trim();
 
     // Validate required fields
-    if (!level || !code || !name || !stream || !honours) {
+    if (!level || !year || !category || !code || !name || !honours) {
         showToast("All fields are required!", "error");
         return;
     }
 
-    // Initialize subjects array if needed
     if (!appConfig.subjectControl.subjects) {
         appConfig.subjectControl.subjects = [];
     }
 
-    // ✅ NEW: Check for duplicate subject code
+    // Check for duplicate subject code
     const duplicateCode = appConfig.subjectControl.subjects.find(s => 
         s.code.toLowerCase() === code.toLowerCase()
     );
@@ -1027,40 +1163,38 @@ function addSubject() {
         return;
     }
 
-    // ✅ NEW: Check for duplicate subject name in same stream/honours
+    // Check for duplicate subject name
     const duplicateName = appConfig.subjectControl.subjects.find(s => 
         s.name.toLowerCase() === name.toLowerCase() && 
-        s.stream === stream && 
+        s.year === year && 
+        s.category === category &&
         s.honours === honours
     );
     
     if(duplicateName) {
-        showToast(`❌ Subject "${name}" already exists for ${stream} - ${honours}!`, "error");
+        showToast(`❌ Subject "${name}" already exists for ${year} - ${category} - ${honours}!`, "error");
         return;
     }
 
     // Add the subject
     const subject = { 
         level: level,
+        year: year,           // ✅ UG-I, UG-II, PG-I, etc.
+        category: category,   // ✅ SCIENCE, ARTS, etc.
         code: code,
         name: name,
-        stream: stream,
         honours: honours 
     };
 
     appConfig.subjectControl.subjects.push(subject);
-
-    // Save to localStorage
     localStorage.setItem('kiss_app_config', JSON.stringify(appConfig));
-
-    // Refresh subject list
     loadSubjectList();
 
     showToast("✅ Subject added successfully!", "success");
 
-    // ✅ FIX: Use cascade reset (Error #10 fix included)
+    // Reset form
     document.getElementById('new_subject_level').value = '';
-    updateStreamDropdownInDev(); // This resets everything properly
+    updateStreamDropdownInDev();
 }
 
 function loadSubjectList() {
@@ -1396,18 +1530,56 @@ window.checkLocalStorage = checkLocalStorage;
 let allSemestersData = {}; 
 let currentSemIndex = 1; 
 let maxSemestersAllowed = 6;
-const HONOURS_DATA = { 
-    'UG-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology', 'Computer Science'], 
-    'UG-ARTS': ['Political Science', 'Economics', 'Psychology', 'History', 'Sociology', 'Anthropology', 'Education', 'Odia', 'English', 'Hindi', 'Sanskrit', 'Philosophy'], 
-    'UG-COMMERCE': ['Commerce'], 
+const HONOURS_DATA = {
+    // UG Years with Streams
+    'UG-I-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology', 'Computer Science'],
+    'UG-I-ARTS': ['Political Science', 'Economics', 'Psychology', 'History', 'Sociology', 'Anthropology', 'Education', 'Odia', 'English', 'Hindi', 'Sanskrit', 'Philosophy'],
+    'UG-I-COMMERCE': ['Commerce'],
+    'UG-I-VOCATIONAL': ['Vocational Studies'],
+    
+    'UG-II-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology', 'Computer Science'],
+    'UG-II-ARTS': ['Political Science', 'Economics', 'Psychology', 'History', 'Sociology', 'Anthropology', 'Education', 'Odia', 'English', 'Hindi', 'Sanskrit', 'Philosophy'],
+    'UG-II-COMMERCE': ['Commerce'],
+    'UG-II-VOCATIONAL': ['Vocational Studies'],
+    
+    'UG-III-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology', 'Computer Science'],
+    'UG-III-ARTS': ['Political Science', 'Economics', 'Psychology', 'History', 'Sociology', 'Anthropology', 'Education', 'Odia', 'English', 'Hindi', 'Sanskrit', 'Philosophy'],
+    'UG-III-COMMERCE': ['Commerce'],
+    'UG-III-VOCATIONAL': ['Vocational Studies'],
+    
+    'UG-IV-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology', 'Computer Science'],
+    'UG-IV-ARTS': ['Political Science', 'Economics', 'Psychology', 'History', 'Sociology', 'Anthropology', 'Education', 'Odia', 'English', 'Hindi', 'Sanskrit', 'Philosophy'],
+    'UG-IV-COMMERCE': ['Commerce'],
+    'UG-IV-VOCATIONAL': ['Vocational Studies'],
+    
+    // PG Years with Streams
+    'PG-I-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Computer Science', 'Botany', 'Zoology', 'Comparative Indic Studies and Tribal Science'],
+    'PG-I-ARTS': ['Political Science', 'Philosophy', 'History', 'Education', 'Social Work', 'Anthropology', 'Tribal Legal Studies & Tribal Rights', 'English', 'Odia', 'Psychology', 'Home Science'],
+    'PG-I-COMMERCE': ['Commerce / Tribal Resource Management'],
+    'PG-I-VOCATIONAL': ['Vocational Studies'],
+    
+    'PG-II-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Computer Science', 'Botany', 'Zoology', 'Comparative Indic Studies and Tribal Science'],
+    'PG-II-ARTS': ['Political Science', 'Philosophy', 'History', 'Education', 'Social Work', 'Anthropology', 'Tribal Legal Studies & Tribal Rights', 'English', 'Odia', 'Psychology', 'Home Science'],
+    'PG-II-COMMERCE': ['Commerce / Tribal Resource Management'],
+    'PG-II-VOCATIONAL': ['Vocational Studies'],
+    
+    // ✅ KEEP OLD FORMAT FOR BACKWARD COMPATIBILITY (Marksheet system)
+    'UG-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Botany', 'Zoology', 'Computer Science'],
+    'UG-ARTS': ['Political Science', 'Economics', 'Psychology', 'History', 'Sociology', 'Anthropology', 'Education', 'Odia', 'English', 'Hindi', 'Sanskrit', 'Philosophy'],
+    'UG-COMMERCE': ['Commerce'],
     'UG-VOCATIONAL': ['Vocational Studies'],
-    'PG-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Computer Science', 'Botany', 'Zoology', 'Comparative Indic Studies and Tribal Science'], 
-    'PG-ARTS': ['Political Science', 'Philosophy', 'History', 'Education', 'Social Work', 'Anthropology', 'Tribal Legal Studies & Tribal Rights', 'English', 'Odia', 'Psychology', 'Home Science'], 
+    'PG-SCIENCE': ['Physics', 'Chemistry', 'Mathematics', 'Computer Science', 'Botany', 'Zoology', 'Comparative Indic Studies and Tribal Science'],
+    'PG-ARTS': ['Political Science', 'Philosophy', 'History', 'Education', 'Social Work', 'Anthropology', 'Tribal Legal Studies & Tribal Rights', 'English', 'Odia', 'Psychology', 'Home Science'],
     'PG-COMMERCE': ['Commerce / Tribal Resource Management'],
     'PG-VOCATIONAL': ['Vocational Studies']
 };
 
-function validateAndGo(n) { 
+function validateAndGo(n) {
+    // ✅ ADD: Check permission before allowing navigation
+    if(!checkStaffPermission('mark')) {
+        return;
+    }
+    
     if(n === 1) {
         if(!validateStep0()) {
            showToast("Please fill all required fields correctly in Step 0", 'warning');
@@ -1424,6 +1596,14 @@ function validateAndGo(n) {
 
 function goToStep(n) {
     document.querySelectorAll('.step').forEach(e => e.classList.remove('active'));
+    
+    // Handle string IDs (like 'staff-mode-selection')
+    if(typeof n === 'string') {
+        document.getElementById(n).classList.add('active');
+        return;
+    }
+    
+    // Handle numeric steps (0, 1, 2)
     document.getElementById('step'+n).classList.add('active');
     
     const card = document.querySelector('#staff-dashboard .card');
@@ -2163,6 +2343,11 @@ async function downloadStudentPDF(type){
 }
 
 function printStaffPDF(mode) {
+    if(!checkStaffPermission('mark')) {
+        return;
+    }
+    
+    if(!saveCurrentSemesterToMemory()) return;
     if(!saveCurrentSemesterToMemory()) return;
     
     updatePreview(mode);
@@ -3783,6 +3968,11 @@ function saveTemplate(name) {
 // Wrap the existing saveToDatabase to add logging
 const originalSaveToDatabase = saveToDatabase;
 saveToDatabase = function() {
+    // ✅ ADD: Permission check
+    if(!checkStaffPermission('mark')) {
+        return;
+    }
+    
     const roll = document.getElementById('in_roll').value.trim();
     const name = document.getElementById('in_fname').value + ' ' + document.getElementById('in_lname').value;
     
@@ -3795,10 +3985,10 @@ saveToDatabase = function() {
     // Log activity
     if(isUpdate) {
         logActivity('update', `Updated student: ${roll} - ${name}`);
-        addNotification('Student Updated', `Updated data for ${name} (${roll})`, 'success'); // ✅ ADDED
+        addNotification('Student Updated', `Updated data for ${name} (${roll})`, 'success');
     } else {
         logActivity('create', `Created student: ${roll} - ${name}`);
-        addNotification('New Student Added', `${name} (${roll}) has been added to the system`, 'success'); // ✅ ADDED
+        addNotification('New Student Added', `${name} (${roll}) has been added to the system`, 'success');
     }
 };
 
@@ -3837,6 +4027,7 @@ const originalLoadDevSettings = loadDevSettings;
 loadDevSettings = function() {
     originalLoadDevSettings.call(this);
     initializeDeveloperFeatures();
+    displayCurrentPermissions();
 };
 
 // ==========================================
@@ -4157,4 +4348,442 @@ function uploadCustomWatermark(input) {
     };
     
     reader.readAsDataURL(input.files[0]);
+}
+// ==========================================
+// STAFF & STUDENT PANEL NAVIGATION
+// ==========================================
+
+function goToMarksheetMode() {
+    // ✅ ADD: Permission check
+    if(!checkStaffPermission('mark')) {
+        return; // Block access
+    }
+    
+    document.getElementById('staff-mode-selection').classList.remove('active');
+    goToStep(0);
+}
+
+function goToExamMode() {
+    // ✅ ADD: Permission check
+    if(!checkStaffPermission('exam')) {
+        return; // Block access
+    }
+    
+    document.querySelectorAll('.step').forEach(e => e.classList.remove('active'));
+    document.getElementById('exam-system-container').classList.add('active');
+}
+
+function goToStep(stepId) {
+    document.querySelectorAll('.step').forEach(e => e.classList.remove('active'));
+    
+    if(typeof stepId === 'string') {
+        document.getElementById(stepId).classList.add('active');
+    } else {
+        document.getElementById('step' + stepId).classList.add('active');
+        
+        const card = document.querySelector('#staff-dashboard .card');
+        if(card) { 
+            if(stepId === 2){ 
+                card.classList.add('wide-card'); 
+                if(document.getElementById('marks-container').innerHTML === "") loadSemesterFromMemory();
+            } else {
+                card.classList.remove('wide-card'); 
+            }
+        }
+    }
+}
+
+function showResultSearch() {
+    document.getElementById('student-mode-selection').style.display = 'none';
+    document.getElementById('result-search-section').style.display = 'block';
+}
+
+function showExamPortal() {
+    document.getElementById('student-mode-selection').style.display = 'none';
+    document.getElementById('exam-portal-section').style.display = 'block';
+}
+
+function backToStudentMenu() {
+    document.getElementById('student-mode-selection').style.display = 'block';
+    document.getElementById('result-search-section').style.display = 'none';
+    document.getElementById('exam-portal-section').style.display = 'none';
+    
+    // Clear search fields
+    document.getElementById('search-roll').value = '';
+    document.getElementById('search-dob').value = '';
+    document.getElementById('student-error').style.display = 'none';
+    document.getElementById('student-result-area').style.display = 'none';
+}
+function toggleTheme() {
+    const body = document.body;
+    const btn = document.getElementById('theme-toggle-btn');
+    
+    if(body.classList.contains('dark-theme')) {
+        body.classList.remove('dark-theme');
+        btn.innerHTML = '🌙 Dark Mode';
+        btn.style.background = '#ffc107';
+        btn.style.color = '#000';
+        localStorage.setItem('kiss_theme_mode', 'light');
+    } else {
+        body.classList.add('dark-theme');
+        btn.innerHTML = '☀️ Light Mode';
+        btn.style.background = '#fff';
+        btn.style.color = '#000';
+        localStorage.setItem('kiss_theme_mode', 'dark');
+    }
+}
+
+// Load saved theme on startup
+window.addEventListener('load', function() {
+    const savedTheme = localStorage.getItem('kiss_theme_mode');
+    if(savedTheme === 'dark') {
+        document.body.classList.add('dark-theme');
+        const btn = document.getElementById('theme-toggle-btn');
+        if(btn) {
+            btn.innerHTML = '☀️ Light Mode';
+            btn.style.background = '#fff';
+        }
+    }
+});
+// ==========================================
+// STUDENT TABLES FOR DEVELOPER CONSOLE
+// ==========================================
+
+function refreshStudentTables() {
+    loadMarksheetStudents();
+    loadExamStudents();
+    updateStudentStats();
+}
+
+function loadMarksheetStudents() {
+    const container = document.getElementById('marksheet-students-table');
+    if(!container) return;
+    
+    const students = [];
+    
+    // Get all students from marksheet system
+    for(let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if(key.startsWith('kiss_data_')) {
+            try {
+                const data = JSON.parse(localStorage.getItem(key));
+                students.push({
+                    roll: data.roll,
+                    name: data.studentInfo?.name || 'N/A',
+                    email: data.studentInfo?.email || 'N/A',
+                    class: data.studentInfo?.currentClass || 'N/A',
+                    stream: data.studentInfo?.stream || 'N/A',
+                    dob: data.dob,
+                    timestamp: data.timestamp || 'N/A'
+                });
+            } catch(e) {
+                console.error('Error loading student:', key);
+            }
+        }
+    }
+    
+    // Sort by roll number
+    students.sort((a, b) => a.roll.localeCompare(b.roll));
+    
+    if(students.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">No students found in marksheet system</p>';
+        return;
+    }
+    
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
+    html += '<thead><tr style="background:#e9ecef;">';
+    html += '<th style="padding:10px; border:1px solid #ddd;">S.No</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Roll No</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Name</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Email</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Class</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Stream</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">DOB</th>';
+    html += '</tr></thead><tbody>';
+    
+    students.forEach((student, index) => {
+        html += '<tr>';
+        html += `<td style="padding:8px; border:1px solid #ddd; text-align:center;">${index + 1}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd;"><strong>${student.roll}</strong></td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd;">${student.name}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd;">${student.email}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd; text-align:center;">${student.class}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd;">${student.stream}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd; text-align:center;">${student.dob}</td>`;
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function loadExamStudents() {
+    const container = document.getElementById('exam-students-table');
+    if(!container) return;
+    
+    // Get students added by staff
+    const addedStudents = JSON.parse(localStorage.getItem('examStudents') || '[]');
+    
+    // Get students who appeared (from exam submissions)
+    const appearedStudents = JSON.parse(localStorage.getItem('examSubmissions') || '[]');
+    
+    // Merge and track status
+    const allStudents = [];
+    const appearedRolls = new Set(appearedStudents.map(s => s.roll));
+    
+    addedStudents.forEach(student => {
+        allStudents.push({
+            roll: student.roll,
+            dob: student.dob,
+            appeared: appearedRolls.has(student.roll),
+            submittedAt: appearedStudents.find(s => s.roll === student.roll)?.timestamp || null
+        });
+    });
+    
+    // Update counts
+    document.getElementById('added-count').textContent = addedStudents.length;
+    document.getElementById('appeared-count').textContent = appearedStudents.length;
+    
+    if(allStudents.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">No students added to exam system yet</p>';
+        return;
+    }
+    
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
+    html += '<thead><tr style="background:#e9ecef;">';
+    html += '<th style="padding:10px; border:1px solid #ddd;">S.No</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Roll No</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">DOB</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Status</th>';
+    html += '<th style="padding:10px; border:1px solid #ddd;">Submitted At</th>';
+    html += '</tr></thead><tbody>';
+    
+    allStudents.forEach((student, index) => {
+        const statusBadge = student.appeared 
+            ? '<span style="background:#4caf50; color:white; padding:3px 10px; border-radius:12px; font-size:10px;">✅ Appeared</span>'
+            : '<span style="background:#ff9800; color:white; padding:3px 10px; border-radius:12px; font-size:10px;">⏳ Not Appeared</span>';
+        
+        const submittedTime = student.submittedAt 
+            ? new Date(student.submittedAt).toLocaleString()
+            : '-';
+        
+        html += '<tr>';
+        html += `<td style="padding:8px; border:1px solid #ddd; text-align:center;">${index + 1}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd;"><strong>${student.roll}</strong></td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd; text-align:center;">${student.dob}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd; text-align:center;">${statusBadge}</td>`;
+        html += `<td style="padding:8px; border:1px solid #ddd; text-align:center;">${submittedTime}</td>`;
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function updateStudentStats() {
+    const statsContainer = document.getElementById('student-stats');
+    if(!statsContainer) return;
+    
+    // Count marksheet students
+    let marksheetCount = 0;
+    for(let i = 0; i < localStorage.length; i++) {
+        if(localStorage.key(i).startsWith('kiss_data_')) {
+            marksheetCount++;
+        }
+    }
+    
+    // Count exam students
+    const examStudents = JSON.parse(localStorage.getItem('examStudents') || '[]');
+    const appeared = JSON.parse(localStorage.getItem('examSubmissions') || '[]');
+    
+    const html = `
+        <div style="background:#e3f2fd; padding:20px; border-radius:8px; text-align:center;">
+            <div style="font-size:32px; font-weight:bold; color:#1976d2;">${marksheetCount}</div>
+            <div style="font-size:13px; color:#555; margin-top:5px;">Marksheet Students</div>
+        </div>
+        <div style="background:#fff3e0; padding:20px; border-radius:8px; text-align:center;">
+            <div style="font-size:32px; font-weight:bold; color:#f57c00;">${examStudents.length}</div>
+            <div style="font-size:13px; color:#555; margin-top:5px;">Exam Students Added</div>
+        </div>
+        <div style="background:#e8f5e9; padding:20px; border-radius:8px; text-align:center;">
+            <div style="font-size:32px; font-weight:bold; color:#388e3c;">${appeared.length}</div>
+            <div style="font-size:13px; color:#555; margin-top:5px;">Students Appeared</div>
+        </div>
+    `;
+    
+    statsContainer.innerHTML = html;
+}
+
+function exportMarksheetStudentsCSV() {
+    const students = [];
+    
+    for(let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if(key.startsWith('kiss_data_')) {
+            try {
+                const data = JSON.parse(localStorage.getItem(key));
+                students.push({
+                    roll: data.roll,
+                    name: data.studentInfo?.name || 'N/A',
+                    email: data.studentInfo?.email || 'N/A',
+                    class: data.studentInfo?.currentClass || 'N/A',
+                    stream: data.studentInfo?.stream || 'N/A',
+                    dob: data.dob
+                });
+            } catch(e) {}
+        }
+    }
+    
+    if(students.length === 0) {
+        showToast('No students to export!', 'warning');
+        return;
+    }
+    
+    let csv = 'S.No,Roll No,Name,Email,Class,Stream,DOB\n';
+    students.forEach((s, i) => {
+        csv += `${i + 1},${s.roll},${s.name},${s.email},${s.class},${s.stream},${s.dob}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Marksheet_Students_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    
+    showToast(`✅ Exported ${students.length} marksheet students!`, 'success');
+}
+
+function exportExamStudentsCSV() {
+    const addedStudents = JSON.parse(localStorage.getItem('examStudents') || '[]');
+    const appearedStudents = JSON.parse(localStorage.getItem('examSubmissions') || '[]');
+    const appearedRolls = new Set(appearedStudents.map(s => s.roll));
+    
+    if(addedStudents.length === 0) {
+        showToast('No exam students to export!', 'warning');
+        return;
+    }
+    
+    let csv = 'S.No,Roll No,DOB,Status,Submitted At\n';
+    addedStudents.forEach((s, i) => {
+        const appeared = appearedRolls.has(s.roll);
+        const submission = appearedStudents.find(sub => sub.roll === s.roll);
+        const submittedAt = submission ? new Date(submission.timestamp).toLocaleString() : '-';
+        const status = appeared ? 'Appeared' : 'Not Appeared';
+        
+        csv += `${i + 1},${s.roll},${s.dob},${status},${submittedAt}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Exam_Students_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    
+    showToast(`✅ Exported ${addedStudents.length} exam students!`, 'success');
+}
+
+function clearExamStudents() {
+    if(!confirm('⚠️ Delete all exam students? This will only clear the exam system, not marksheet data.')) {
+        return;
+    }
+    
+    localStorage.removeItem('examStudents');
+    localStorage.removeItem('examSubmissions');
+    
+    refreshStudentTables();
+    showToast('✅ Exam students cleared!', 'success');
+}
+function showStaffModeSelection(role) {
+    document.getElementById('staff-mode-selection').classList.add('active');
+    
+    const marksheetBtn = document.querySelector('button[onclick="goToMarksheetMode()"]');
+    const examBtn = document.querySelector('button[onclick="goToExamMode()"]');
+    
+    // Show/hide buttons based on role
+    if(role === 'mark') {
+        marksheetBtn.style.display = 'block';
+        examBtn.style.display = 'none';
+    } else if(role === 'exam') {
+        marksheetBtn.style.display = 'none';
+        examBtn.style.display = 'block';
+    } else { // 'all'
+        marksheetBtn.style.display = 'block';
+        examBtn.style.display = 'block';
+    }
+    
+    // ✅ NEW: Add role badge to navbar
+    const userDisplay = document.getElementById('user-display');
+    const roleColor = role === 'all' ? '#28a745' : role === 'mark' ? '#007bff' : '#fd7e14';
+    userDisplay.innerHTML = `${userDisplay.textContent} <span style="background:${roleColor}; padding:3px 10px; border-radius:12px; font-size:11px; margin-left:10px;">ROLE: ${role.toUpperCase()}</span>`;
+}
+// Wait for DOM to be ready
+window.addEventListener('load', function() {
+    const userTypeSelect = document.getElementById('new_user_type');
+    if(userTypeSelect) {
+        userTypeSelect.addEventListener('change', function() {
+            const roleSection = document.getElementById('staff-role-section');
+            if(roleSection) {
+                roleSection.style.display = this.value === 'staff' ? 'block' : 'none';
+            }
+        });
+    }
+});
+// ==========================================
+// PERMISSION GUARD SYSTEM
+// ==========================================
+
+function checkStaffPermission(requiredPermission) {
+    // If no staff is logged in, deny
+    if(!window.currentStaffRole) {
+        showToast('❌ Access Denied! Please login first.', 'error', 4000);
+        logout();
+        return false;
+    }
+    
+    // If staff has 'all' role, allow everything
+    if(window.currentStaffRole === 'all') {
+        return true;
+    }
+    
+    // Check specific permissions
+    if(window.currentStaffRole === requiredPermission) {
+        return true;
+    }
+    
+    // ✅ NEW: Log unauthorized access attempt
+    const username = document.getElementById('user-display')?.innerText || 'Unknown';
+    logActivity('security', `⚠️ UNAUTHORIZED ACCESS ATTEMPT: ${username} tried to access ${requiredPermission} feature`);
+    
+    // Permission denied
+    showToast(`❌ Access Denied! You don't have permission to access this feature. Your role: ${window.currentStaffRole}`, 'error', 5000);
+    return false;
+}
+function displayCurrentPermissions() {
+    const container = document.getElementById('current-permissions-display');
+    if(!container) return;
+    
+    if(!window.currentStaffRole) {
+        container.innerHTML = '<p style="color:#999;">No staff logged in</p>';
+        return;
+    }
+    
+    const role = window.currentStaffRole;
+    const permissions = {
+        'all': ['Marksheet Management', 'Exam Management', 'Full System Access'],
+        'mark': ['Marksheet Management Only'],
+        'exam': ['Exam Management Only']
+    };
+    
+    let html = `<div style="background:#f8f9fa; padding:15px; border-radius:8px;">`;
+    html += `<div style="font-size:18px; font-weight:bold; color:#007bff; margin-bottom:10px;">Role: ${role.toUpperCase()}</div>`;
+    html += `<div style="font-size:13px;"><strong>Permissions:</strong></div>`;
+    html += `<ul style="margin:10px 0; padding-left:20px;">`;
+    permissions[role].forEach(perm => {
+        html += `<li style="color:#28a745;">✅ ${perm}</li>`;
+    });
+    html += `</ul></div>`;
+    
+    container.innerHTML = html;
 }

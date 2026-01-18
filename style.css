@@ -347,19 +347,12 @@ input[type="number"] {
     -moz-appearance: textfield; /* For Firefox */
     appearance: none;
 }
-footer{
-    border: 2px solid black ;
-    border-radius : 5px 5px 0px 0px ;
-    width : 98% ;
+footer {
+    border: 2px solid black;
+    border-radius: 5px 5px 0px 0px;
+    width: 98%;
     background: #666;
-}
-div.footer{
-    background: transparent;
-    padding: 5px;
-}
-footer p{
-    color:white;
-    font-size: 14px;
+    margin-top: 100vh; /* Push footer below viewport */
 }
 p#left_footer{
     float: left ;
@@ -368,4 +361,164 @@ p#left_footer{
 p#right_footer{
     float: right ;
     margin-right: 20px;
+}
+/* Dark Mode Styles */
+body.dark-theme {
+    background: #1a1a1a !important;
+    color: #e0e0e0;
+}
+
+body.dark-theme .card,
+body.dark-theme .login-box {
+    background: #2d2d2d;
+    color: #e0e0e0;
+}
+
+body.dark-theme input,
+body.dark-theme select,
+body.dark-theme textarea {
+    background: #3a3a3a;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+body.dark-theme .navbar {
+    background: #000;
+}
+
+body.dark-theme .preview-pane {
+    background: #1a1a1a;
+}
+
+body.dark-theme footer {
+    background: #000;
+}
+/* ================================ */
+/* STUDENT DASHBOARD MOBILE VIEW    */
+/* ================================ */
+
+@media screen and (max-width: 768px) {
+    /* Dashboard layout */
+    #student-dashboard {
+        width: 100%;
+        padding: 10px;
+    }
+    
+    #student-dashboard h2 {
+        font-size: 20px;
+        text-align: center;
+    }
+    
+    /* Mode selection grid */
+    #student-mode-selection > div {
+        grid-template-columns: 1fr !important;
+        gap: 15px;
+    }
+    
+    #student-mode-selection button {
+        padding: 20px !important;
+        font-size: 16px !important;
+        width: 100%;
+    }
+    
+    #student-mode-selection button small {
+        font-size: 11px !important;
+    }
+    
+    /* Search box */
+    .search-box {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .search-box input {
+        max-width: 100%;
+        width: 100%;
+        font-size: 16px;
+    }
+    
+    .search-box button {
+        width: 100%;
+    }
+    
+    /* Result type buttons */
+    #result-search-section > div {
+        flex-direction: column !important;
+    }
+    
+    #result-search-section button {
+        width: 100%;
+        font-size: 14px;
+        padding: 12px 20px !important;
+    }
+    
+    /* PDF preview */
+    .preview-pane {
+        min-width: 100%;
+        padding: 15px;
+        max-height: 70vh;
+    }
+    
+    .pdf-design {
+        width: 100% !important;
+        min-height: auto !important;
+        padding: 15px;
+        font-size: 10px;
+    }
+    
+    /* PDF tables */
+    .pdf-design table.marks-table {
+        font-size: 8px !important;
+    }
+    
+    .pdf-design table.marks-table th,
+    .pdf-design table.marks-table td {
+        padding: 3px !important;
+        font-size: 7px !important;
+    }
+    
+    /* Print button */
+    #student-result-area button {
+        width: 100%;
+        padding: 15px 30px;
+        font-size: 16px;
+    }
+    
+    /* Error messages */
+    #student-error {
+        font-size: 14px;
+        padding: 15px;
+    }
+    
+    /* Result area */
+    #student-result-area {
+        width: 100%;
+    }
+    
+    #student-pdf-type-label {
+        font-size: 14px;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    
+    /* Logout button in student panel */
+    #student-mode-selection > button:last-child {
+        margin-top: 30px;
+    }
+}
+
+/* Very small phones (< 375px) */
+@media screen and (max-width: 375px) {
+    #student-dashboard h2 {
+        font-size: 18px;
+    }
+    
+    .search-box input {
+        font-size: 14px;
+        padding: 10px;
+    }
+    
+    .pdf-design {
+        padding: 10px;
+    }
 }
